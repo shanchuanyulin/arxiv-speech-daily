@@ -2,3 +2,4 @@ arxiv>=2.1.0
 matplotlib
 beautifulsoup4
 html5lib
+notion-client
