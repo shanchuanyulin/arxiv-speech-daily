@@ -303,4 +303,8 @@ if __name__ == "__main__":
     print(f"✅ 已生成报告文件：{md_path}")
 
     send_email(all_results, date_str, mode, runtime)
+        # === 同步到 Notion ===
+    sync_to_notion(all_results, date_str, mode)
+
+
 
