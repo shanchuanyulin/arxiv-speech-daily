@@ -1,37 +1,49 @@
-name: Daily Arxiv Speech Report
+name: Daily Arxiv Speech Report (Auto Archive + HTML Email)
 
 on:
   schedule:
     # 每天北京时间早上 8 点运行（即 UTC 0 点）
     - cron: "0 0 * * *"
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:  # 支持手动运行
+
 jobs:
-  build:
+  arxiv_daily:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
+    - name: 📂 Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Set up Python
+    - name: 🐍 Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.10"
 
-    - name: Install dependencies
+    - name: 📦 Install Dependencies
       run: |
         pip install -r requirements.txt
 
-    - name: Run Arxiv Speech Daily
+    - name: 🧠 Run Arxiv Speech Daily Script
+      env:
+        EMAIL_USER: ${{ secrets.EMAIL_USER }}
+        EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+        EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
       run: |
         echo "Running arxiv_speech_daily.py ..."
+        mkdir -p reports
         python arxiv_speech_daily.py --broad
-        echo "✅ Script completed."
+        TODAY=$(date '+%Y-%m-%d')
+        cp debug_papers.md reports/${TODAY}.md
+        echo "✅ Saved report as reports/${TODAY}.md"
 
-    - name: Commit and Push Report
+    - name: 💾 Commit and Push Report
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add debug_papers.md
-        git commit -m "📚 Update arXiv Speech Report ($(date '+%Y-%m-%d'))" || echo "No changes"
-        git push
+
+        # 同步远程变更，防止 push 冲突
+        git pull --rebase origin main || true
+
+        git add reports/ debug_papers.md
+        git commit -m "📚 Arxiv Speech Report: $(date '+%Y-%m-%d')" || echo "No new changes"
+        git push --force origin main
