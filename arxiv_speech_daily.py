@@ -115,13 +115,44 @@ def find_latest(broad=False):
 
 import time
 
-def generate_html(all_results, date_str, runtime_sec=None):
-    """生成美观、带统计和 fallback 的 HTML 邮件内容"""
-    # 计算总论文数
+import base64
+import io
+import matplotlib.pyplot as plt
+
+def generate_html(all_results, date_str, runtime_sec=None, mode="daily"):
+    """生成美观、带统计图的 HTML 邮件内容"""
     total_papers = sum(len(p) for p in all_results.values())
     runtime_info = f"{runtime_sec:.1f}s" if runtime_sec else "N/A"
 
-    # 顶部 banner 颜色渐变
+    # === 生成分类统计图 ===
+    categories = list(all_results.keys())
+    counts = [len(all_results[c]) for c in categories if all_results[c]]
+
+    if len(counts) > 0:
+        fig, ax = plt.subplots(figsize=(6, 6))
+        cmap = plt.get_cmap("tab20")
+        colors = [cmap(i) for i in range(len(counts))]
+
+        wedges, texts, autotexts = ax.pie(
+            counts,
+            labels=categories,
+            autopct="%1.1f%%",
+            startangle=140,
+            colors=colors,
+            textprops={"fontsize": 10},
+        )
+        ax.set_title(f"论文分类占比 ({date_str})", fontsize=13)
+        plt.tight_layout()
+
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png", bbox_inches="tight")
+        plt.close(fig)
+        img_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+        chart_html = f'<img src="data:image/png;base64,{img_base64}" alt="Chart" style="display:block;margin:auto;width:70%;border-radius:10px;box-shadow:0 3px 10px rgba(0,0,0,0.1);">'
+    else:
+        chart_html = "<p style='text-align:center;color:#999;'>暂无统计数据</p>"
+
+    # === 生成主HTML ===
     html = f"""
     <html>
     <head>
@@ -129,7 +160,7 @@ def generate_html(all_results, date_str, runtime_sec=None):
         <style>
             body {{
                 font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-                background: #f6f9fc;
+                background: #f5f7fa;
                 margin: 0;
                 padding: 0;
             }}
@@ -143,12 +174,6 @@ def generate_html(all_results, date_str, runtime_sec=None):
             .banner h1 {{
                 margin: 0;
                 font-size: 26px;
-                letter-spacing: 1px;
-            }}
-            .banner .subtitle {{
-                margin-top: 6px;
-                font-size: 15px;
-                opacity: 0.9;
             }}
             .container {{
                 max-width: 900px;
@@ -160,9 +185,9 @@ def generate_html(all_results, date_str, runtime_sec=None):
             }}
             .stats {{
                 text-align: center;
-                margin-bottom: 20px;
                 font-size: 14px;
                 color: #555;
+                margin-bottom: 15px;
             }}
             h2 {{
                 font-size: 20px;
@@ -179,16 +204,12 @@ def generate_html(all_results, date_str, runtime_sec=None):
                 padding: 12px 16px;
                 border-radius: 8px;
                 box-shadow: 0 1px 5px rgba(0,0,0,0.05);
-                background: #fff;
             }}
             .title a {{
                 font-size: 16px;
                 font-weight: bold;
                 color: #1a73e8;
                 text-decoration: none;
-            }}
-            .title a:hover {{
-                text-decoration: underline;
             }}
             .authors {{
                 color: #555;
@@ -201,72 +222,35 @@ def generate_html(all_results, date_str, runtime_sec=None):
                 color: #333;
                 line-height: 1.5;
             }}
-            hr {{
-                margin: 30px 0;
-                border: none;
-                border-top: 1px solid #ddd;
-            }}
             .footer {{
                 text-align: center;
                 font-size: 13px;
                 color: #777;
                 margin-top: 25px;
-                line-height: 1.5;
             }}
-            .footer a {{
-                color: #2b5f9e;
-                text-decoration: none;
+            hr {{
+                margin: 30px 0;
+                border: none;
+                border-top: 1px solid #ddd;
             }}
-            .footer a:hover {{
-                text-decoration: underline;
-            }}
-            .tag {{
-                display: inline-block;
-                padding: 3px 10px;
-                font-size: 12px;
-                border-radius: 8px;
-                color: white;
-                margin-bottom: 10px;
-            }}
-            .asr {{ background-color: #3b82f6; }}
-            .tts {{ background-color: #10b981; }}
-            .diffusion {{ background-color: #f59e0b; }}
-            .foundation {{ background-color: #8b5cf6; }}
-            .multimodal {{ background-color: #ec4899; }}
-            .speaker {{ background-color: #ef4444; }}
         </style>
     </head>
     <body>
         <div class="banner">
-            <h1>🎙️ Speech AI Daily Report</h1>
-            <div class="subtitle">arXiv 语音方向论文日报 · {date_str}</div>
+            <h1>{'🗓️ 一周语音论文综述' if mode == 'weekly' else '📚 语音论文日报'}</h1>
+            <div style="font-size:14px;opacity:0.9;">日期：{date_str}</div>
         </div>
         <div class="container">
             <div class="stats">
-                📄 共收录 <b>{total_papers}</b> 篇论文 | ⏱️ 生成耗时：<b>{runtime_info}</b>
+                📄 共收录 <b>{total_papers}</b> 篇论文 | ⏱️ 耗时 <b>{runtime_info}</b>
             </div>
             <hr>
     """
 
-    # 分类颜色映射
-    tag_map = {
-        "ASR": "asr",
-        "TTS": "tts",
-        "Diffusion": "diffusion",
-        "Foundation": "foundation",
-        "Multimodal": "multimodal",
-        "Speaker": "speaker"
-    }
-
-    # 内容循环
     for cat, papers in all_results.items():
         if not papers:
             continue
-        tag_class = "asr"
-        for key, cls in tag_map.items():
-            if key.lower() in cat.lower():
-                tag_class = cls
-        html += f"<h2><span class='tag {tag_class}'>{cat}</span></h2>"
+        html += f"<h2>{cat}</h2>"
         for p in papers:
             html += f"""
             <div class="paper">
@@ -276,18 +260,21 @@ def generate_html(all_results, date_str, runtime_sec=None):
             </div>
             """
 
+    # === 插入图表 ===
     html += f"""
             <hr>
+            <h2>📊 分类分布</h2>
+            {chart_html}
             <div class="footer">
                 ✅ 数据来源：<a href="https://arxiv.org">arXiv.org</a><br>
-                🧠 自动生成 · arXiv Speech Daily<br>
-                © {datetime.now().year} Powered by Python
+                🧠 自动生成 · Speech AI Daily · Powered by Python
             </div>
         </div>
     </body>
     </html>
     """
     return html
+
 
 
 def send_email(all_results, date_str, mode="daily", runtime=0.0):
@@ -426,3 +413,4 @@ if EMAIL_SENDER and EMAIL_PASS:
         print(f"⚠️ 邮件发送失败：{e}")
 else:
     print("📭 未检测到邮箱配置，跳过邮件发送。")
+
