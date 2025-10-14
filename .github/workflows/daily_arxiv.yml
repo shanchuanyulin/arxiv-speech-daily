@@ -2,8 +2,9 @@ name: Daily Arxiv Speech Report (Auto Archive + HTML Email)
 
 on:
   schedule:
-    # 每天北京时间早上 8 点运行（即 UTC 0 点）
     - cron: "0 0 * * *"
+    - cron: "0 0 * * 0"
+    
   workflow_dispatch:  # 支持手动运行
 
 jobs:
@@ -29,9 +30,15 @@ jobs:
         EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
         EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
       run: |
-        echo "Running arxiv_speech_daily.py ..."
+        echo "Running script..."
         mkdir -p reports
-        python arxiv_speech_daily.py --broad
+        if [ "$(date +%u)" -eq 7 ]; then
+          echo "🗓️ Running Weekly Mode..."
+          python arxiv_speech_daily.py --weekly --broad
+        else
+          python arxiv_speech_daily.py --broad
+        fi
+
         TODAY=$(date '+%Y-%m-%d')
         cp debug_papers.md reports/${TODAY}.md
         echo "✅ Saved report as reports/${TODAY}.md"
