@@ -199,6 +199,69 @@ def send_email(all_results, date_str, mode="daily", runtime=0.0):
     except Exception as e:
         print(f"⚠️ 邮件发送失败：{e}")
 
+from notion_client import Client
+
+def sync_to_notion(all_results, date_str, mode="daily"):
+    """同步论文到 Notion 数据库"""
+    notion_token = os.environ.get("NOTION_TOKEN")
+    notion_db = os.environ.get("NOTION_DB_ID")
+
+    if not (notion_token and notion_db):
+        print("📭 未检测到 Notion 配置，跳过同步。")
+        return
+
+    notion = Client(auth=notion_token)
+
+    total = 0
+    for cat, papers in all_results.items():
+        for p in papers:
+            try:
+                notion.pages.create(
+                    parent={"database_id": notion_db},
+                    properties={
+                        "Title": {"title": [{"text": {"content": p["title"]}}]},
+                        "Category": {"rich_text": [{"text": {"content": cat}}]},
+                        "Authors": {"rich_text": [{"text": {"content": p["authors"]}}]},
+                        "Date": {"date": {"start": date_str}},
+                        "URL": {"url": p["url"]},
+                    },
+                    children=[
+                        {
+                            "object": "block",
+                            "type": "toggle",
+                            "toggle": {
+                                "text": [
+                                    {
+                                        "type": "text",
+                                        "text": {
+                                            "content": "🧾 摘要（点击展开）"
+                                        },
+                                        "annotations": {"bold": True},
+                                    }
+                                ],
+                                "children": [
+                                    {
+                                        "object": "block",
+                                        "type": "paragraph",
+                                        "paragraph": {
+                                            "text": [
+                                                {
+                                                    "type": "text",
+                                                    "text": {"content": p["summary"]},
+                                                }
+                                            ]
+                                        },
+                                    }
+                                ],
+                            },
+                        }
+                    ],
+                )
+                total += 1
+            except Exception as e:
+                print(f"⚠️ 同步失败: {p['title'][:40]}... ({e})")
+
+    print(f"✅ 已同步 {total} 篇论文到 Notion ({mode})")
 
 # ========= 命令行接口 =========
 def parse_args():
@@ -240,3 +303,4 @@ if __name__ == "__main__":
     print(f"✅ 已生成报告文件：{md_path}")
 
     send_email(all_results, date_str, mode, runtime)
+
