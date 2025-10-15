@@ -320,21 +320,22 @@ date_str = target_date
 
 
 
-# 输出 Markdown
-os.makedirs("reports", exist_ok=True)
-md_path = f"reports/week_of_{end_date}.md" if mode == "weekly" else f"reports/{date_str}.md"
-with open(md_path, "w", encoding="utf-8") as f:
-    for cat, papers in all_results.items():
-        if not papers:
-            continue
-        f.write(f"## {cat}\n")
-        for p in papers:
-            f.write(f"- [{p['title']}]({p['url']}) — {p['authors']}\n\n")
-print(f"✅ 已生成报告文件：{md_path}")
+  # 输出 Markdown
+  os.makedirs("reports", exist_ok=True)
+  md_path = f"reports/week_of_{end_date}.md" if mode == "weekly" else f"reports/{date_str}.md"
+  with open(md_path, "w", encoding="utf-8") as f:
+      for cat, papers in all_results.items():
+          if not papers:
+              continue
+          f.write(f"## {cat}\n")
+          for p in papers:
+              f.write(f"- [{p['title']}]({p['url']}) — {p['authors']}\n\n")
+  print(f"✅ 已生成报告文件：{md_path}")
+  
+  send_email(all_results, date_str, mode, runtime)
+      # === 同步到 Notion ===
+  sync_to_notion(all_results, date_str, mode)
 
-send_email(all_results, date_str, mode, runtime)
-    # === 同步到 Notion ===
-sync_to_notion(all_results, date_str, mode)
 
 
 
