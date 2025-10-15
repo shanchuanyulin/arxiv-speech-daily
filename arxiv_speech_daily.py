@@ -291,51 +291,48 @@ if __name__ == "__main__":
     args = parse_args()
     date_str = args.date or datetime.now().strftime("%Y-%m-%d")
 
-if args.weekly:
-    start_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
-    end_date = datetime.now().strftime("%Y-%m-%d")
-    print(f"📅 生成周报：{start_date} → {end_date}")
-    mode = "weekly"
-    start_time = time.time()
-    all_results = run_search(start_date, end_date, broad=args.broad)
-else:
-    # 🧩 自动检测最近有论文的日期
-    if args.date:
-        target_date = args.date
-        print(f"📅 指定日期：{target_date}")
+    if args.weekly:
+        start_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+        end_date = datetime.now().strftime("%Y-%m-%d")
+        print(f"📅 生成周报：{start_date} → {end_date}")
+        mode = "weekly"
         start_time = time.time()
-        all_results = run_search(target_date, target_date, broad=args.broad)
+        all_results = run_search(start_date, end_date, broad=args.broad)
     else:
-        print("🧭 未指定日期，正在检测最近有论文的日期...")
-        start_time = time.time()
-        latest_date, all_results = find_latest_available_date(broad=args.broad)
-        if not latest_date:
-            print("❌ 未找到最近有论文的日期，程序结束。")
-            exit(0)
-        target_date = latest_date
-        mode = "daily"
+        # 🧩 自动检测最近有论文的日期
+        if args.date:
+            target_date = args.date
+            print(f"📅 指定日期：{target_date}")
+            start_time = time.time()
+            all_results = run_search(target_date, target_date, broad=args.broad)
+        else:
+            print("🧭 未指定日期，正在检测最近有论文的日期...")
+            start_time = time.time()
+            latest_date, all_results = find_latest_available_date(broad=args.broad)
+            if not latest_date:
+                print("❌ 未找到最近有论文的日期，程序结束。")
+                exit(0)
+            target_date = latest_date
+            mode = "daily"
 
-runtime = time.time() - start_time
-date_str = target_date
+    runtime = time.time() - start_time
+    date_str = target_date
 
+    # 输出 Markdown
+    os.makedirs("reports", exist_ok=True)
+    md_path = f"reports/week_of_{end_date}.md" if mode == "weekly" else f"reports/{date_str}.md"
+    with open(md_path, "w", encoding="utf-8") as f:
+        for cat, papers in all_results.items():
+            if not papers:
+                continue
+            f.write(f"## {cat}\n")
+            for p in papers:
+                f.write(f"- [{p['title']}]({p['url']}) — {p['authors']}\n\n")
+    print(f"✅ 已生成报告文件: {md_path}")
 
-
-# 输出 Markdown
-os.makedirs("reports", exist_ok=True)
-md_path = f"reports/week_of_{end_date}.md" if mode == "weekly" else f"reports/{date_str}.md"
-with open(md_path, "w", encoding="utf-8") as f:
-  for cat, papers in all_results.items():
-      if not papers:
-          continue
-      f.write(f"## {cat}\n")
-      for p in papers:
-          f.write(f"- [{p['title']}]({p['url']}) — {p['authors']}\n\n")
-print(f"✅ 已生成报告文件: {md_path}")
-
-send_email(all_results, date_str, mode, runtime)
-# === 同步到 Notion ===
-sync_to_notion(all_results, date_str, mode)
-
+    send_email(all_results, date_str, mode, runtime)
+    # === 同步到 Notion ===
+    sync_to_notion(all_results, date_str, mode)
 
 
 
