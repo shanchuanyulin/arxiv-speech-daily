@@ -100,6 +100,21 @@ def run_search(start_date, end_date, broad=False):
         print(f"   ✅ 共 {len(papers)} 篇")
     return all_results
 
+def find_latest_available_date(max_days=10, broad=False):
+    """自动检测最近有论文更新的日期"""
+    today = datetime.now()
+    for i in range(max_days):
+        date = (today - timedelta(days=i)).strftime("%Y-%m-%d")
+        print(f"\n🔎 检查 {date} 是否有论文...")
+        results = run_search(date, date, broad=broad)
+        total = sum(len(p) for p in results.values())
+        if total > 0:
+            print(f"✅ 找到最近有论文更新的日期：{date}（共 {total} 篇）")
+            return date, results
+        else:
+            print(f"📭 {date} 无论文更新。")
+    print("⚠️ 最近几天都未检索到论文。")
+    return None, {}
 
 # ========= HTML 邮件生成 =========
 def generate_html(all_results, date_str, runtime_sec=None, mode="daily"):
@@ -276,19 +291,34 @@ if __name__ == "__main__":
     args = parse_args()
     date_str = args.date or datetime.now().strftime("%Y-%m-%d")
 
-    if args.weekly:
-        start_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
-        end_date = datetime.now().strftime("%Y-%m-%d")
-        print(f"📅 生成周报：{start_date} → {end_date}")
-        mode = "weekly"
-    else:
-        start_date = end_date = date_str
-        print(f"📅 生成日报：{date_str}")
-        mode = "daily"
-
+if args.weekly:
+    start_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+    end_date = datetime.now().strftime("%Y-%m-%d")
+    print(f"📅 生成周报：{start_date} → {end_date}")
+    mode = "weekly"
     start_time = time.time()
     all_results = run_search(start_date, end_date, broad=args.broad)
-    runtime = time.time() - start_time
+else:
+    # 🧩 自动检测最近有论文的日期
+    if args.date:
+        target_date = args.date
+        print(f"📅 指定日期：{target_date}")
+        start_time = time.time()
+        all_results = run_search(target_date, target_date, broad=args.broad)
+    else:
+        print("🧭 未指定日期，正在检测最近有论文的日期...")
+        start_time = time.time()
+        latest_date, all_results = find_latest_available_date(broad=args.broad)
+        if not latest_date:
+            print("❌ 未找到最近有论文的日期，程序结束。")
+            exit(0)
+        target_date = latest_date
+    mode = "daily"
+
+runtime = time.time() - start_time
+date_str = target_date
+
+
 
     # 输出 Markdown
     os.makedirs("reports", exist_ok=True)
@@ -305,6 +335,7 @@ if __name__ == "__main__":
     send_email(all_results, date_str, mode, runtime)
         # === 同步到 Notion ===
     sync_to_notion(all_results, date_str, mode)
+
 
 
 
